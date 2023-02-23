@@ -6,7 +6,7 @@ Utility functions to train different NILM models
 import pandas as pd
 import numpy as np
 
-def load_train(THRESHOLD:int = 5, path: str = "dataset/", dataset="ukdale"):
+def load_train(THRESHOLD:int = 5, path: str = "datasets/", dataset="ukdale"):
 
     if dataset=="ukdale":
         #appliance data
@@ -25,12 +25,16 @@ def load_train(THRESHOLD:int = 5, path: str = "dataset/", dataset="ukdale"):
         house_5_dw = pd.read_table(f'{path}ukdale/house_5/channel_22.dat',delimiter='\s+')
         house_5_mw = pd.read_table(f'{path}ukdale/house_5/channel_23.dat',delimiter='\s+')
 
+        print("loaded appliance data")
+
 
         # get aggregate power signals for homes
         house_1=pd.read_table(f'{path}ukdale/house_1/channel_1.dat',delimiter='\s+')
         house_3=pd.read_table(f'{path}ukdale/house_3/channel_1.dat',delimiter='\s+')
         house_4=pd.read_table(f'{path}ukdale/house_4/channel_1.dat',delimiter='\s+')
         house_5=pd.read_table(f'{path}ukdale/house_5/channel_1.dat',delimiter='\s+')
+
+        print("loaded aggregate data")
 
 
         # rename columns
@@ -43,6 +47,8 @@ def load_train(THRESHOLD:int = 5, path: str = "dataset/", dataset="ukdale"):
         house_3.columns=['time','agg_pow']
         house_4.columns=['time','agg_pow']
         house_5.columns=['time','agg_pow']
+
+        print("renamed columns")
 
         # classify on state
         house_1_ke['on']=house_1_ke['app_pow']>THRESHOLD
@@ -88,26 +94,26 @@ def reshape_data(data):
     input_dim = 2
     num_samples = len(data) - sequence_length + 1
 
-    x_train_reshaped = np.zeros((num_samples, sequence_length, input_dim))
-    y_classification_train = np.zeros((num_samples, 1))
-    y_reg_train = np.zeros((num_samples, 1))
+    x_reshaped = np.zeros((num_samples, sequence_length, input_dim))
+    y_classification = np.zeros((num_samples, 1))
+    y_reg = np.zeros((num_samples, 1))
 
     for i in range(num_samples):
-        x_train_reshaped[i] = data.iloc[i:i+sequence_length, :2].values
-        y_classification_train[i] = data.iloc[i+sequence_length-1, 2]
-        y_reg_train[i] = data.iloc[i+sequence_length-1, 3]
+        x_reshaped[i] = data.iloc[i:i+sequence_length, :2].values
+        y_reg[i] = data.iloc[i+sequence_length-1, 2]
+        y_classification[i] = data.iloc[i+sequence_length-1, 3]
 
 
-    return x_train_reshaped, y_classification_train, y_reg_train
+    return x_reshaped, y_classification, y_reg
 
 
 def preprocess_train():
     train_data = load_train()
-    x_train, y_class_train, y_reg_train = reshape_data(train_data=train_data)
+    x_train, y_class_train, y_reg_train = reshape_data(data=train_data)
 
     return x_train, y_class_train, y_reg_train
 
-def preprocess_test(THRESHOLD:int = 5, path: str = "dataset/", dataset="ukdale"):
+def preprocess_test(THRESHOLD:int = 5, path: str = "datasets/", dataset="ukdale"):
 
     if dataset=="ukdale":
         house_2_ke = pd.read_table(f'{path}ukdale/house_2/channel_8.dat',delimiter='\s+')
