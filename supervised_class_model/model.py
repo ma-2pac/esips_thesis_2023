@@ -1,5 +1,5 @@
 import tensorflow as tf
-from attention_layer import AttentionLayer
+from supervised_class_model.attention_layer import AttentionLayer
 
 
 def build_model(window_size, filters, kernel_size, units):
