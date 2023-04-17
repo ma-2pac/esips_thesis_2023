@@ -13,6 +13,7 @@ from hmmlearn import hmm
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 from sklearn.model_selection import train_test_split
+import nilmtk
 
 
 

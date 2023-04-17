@@ -1,188 +1,41 @@
-import tensorflow as tf
-from tensorflow import keras
-import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
-from supervised_class_model.data_generator import DataGenerator
-from shared_files.utils import *
+#libraries
 import importlib
-
-#custom mods
-import shared_files.dataset_utils as utils
-import hmm.fhmm as fhmm
+from nilmtk import DataSet
+from nilmtk.disaggregate import fhmm_exact
+from nilmtk.utils import print_dict
+import shared_files.utils as utils
+import shared_files.dataset_utils as ds_utils
 
 #reload
 importlib.reload(utils)
-importlib.reload(fhmm)
+importlib.reload(ds_utils)
+
 
 if __name__ == '__main__':
 
-    path=''
+    #load ukdale dataset in h5
+    uk_dale =DataSet('datasets/ukdale/ukdale.h5')
 
-    appliance='dishwasher'
+    # Set the sample period and resample the data if needed
+    sample_period = 300  # Set the sample period in seconds
+    uk_dale.set_window(start='2013-05-01', end='2013-05-07')  # Set the time window for training
 
-    # Choose the appliance-specific window size
-    window_size = 100
+    # Load mains and appliance data
+    mains = uk_dale.buildings[1].elec.mains()  # Replace with the appropriate building number
+    appliances = uk_dale.buildings[1].elec.submeters()  # Replace with the appropriate building number
 
-    # Threshold of 15 Watt for detecting the ON/OFF states
-    THRESHOLD = 15
+    params={'save-model-path':'hmm',
+            'pretrained-model-path': None,
+            'chunk_wise_training': False,
+            'num_of_states':2}
 
-    appliance_df, house_1_dw, house_2_dw, house_3_dw, house_4_dw, house_5_dw = utils.load_ukdale(path='datasets/', appliance= 'dishwasher')
-    appliance_df, house_1_k, house_2_k, house_3_k, house_4_k, house_5_k = utils.load_ukdale(path='datasets/', appliance= 'kettle')
-    appliance_df, house_1_m, house_2_m, house_3_m, house_4_m, house_5_m = utils.load_ukdale(path='datasets/', appliance= 'microwave')
+    # Train the FHMM model
+    fhmm = fhmm_exact.FHMMExact(params=params)
+    fhmm.partial_fit(mains, appliances, sample_period=sample_period)
 
-    #merge different site data
-    train_data=[house_1_dw,house_1_k,house_1_m]
-    train_data.reset_index(inplace=True,drop=True)
+    # Print learned model parameters
+    print_dict(fhmm.model)
 
-    #prep test data
-    test_data = [house_2_dw,house_2_k,house_2_m]
+    # Save the trained model to a file
+    fhmm.export_model('hmm/fhmm_model.pkl')  # Replace with the desired file path
 
-    #reset headings
-    train_data =train_data.rename(columns={'pow_x':'agg_pow', 'pow_y':'app_pow'})
-    test_data =test_data.rename(columns={'pow_x':'agg_pow', 'pow_y':'app_pow'})
-
-
-    train_data['agg_pow']=train_data['agg_pow'].astype(float)
-    train_data['app_pow']=train_data['app_pow'].astype(float)
-    test_data['agg_pow']=test_data['agg_pow'].astype(float)
-    test_data['app_pow']=test_data['app_pow'].astype(float)
-
-
-
-    main_train, appliance_train = np.array(train_data['agg_pow'][:-6000]), np.array(train_data['app_pow'][:-6000])
-    main_val, appliance_val = np.array(train_data['agg_pow'][-6000:]), np.array(train_data['app_pow'][-6000:])
-    main_test, appliance_test = np.array(test_data['agg_pow']), np.array(test_data['app_pow'])
-
-
-
-    # Build ON/OFF appliance vector for the classification subtask
-    appliance_train_classification = np.copy(appliance_train)
-    appliance_train_classification[appliance_train_classification <= THRESHOLD] = 0
-    appliance_train_classification[appliance_train_classification > THRESHOLD] = 1
-
-    appliance_val_classification = np.copy(appliance_val)
-    appliance_val_classification[appliance_val_classification <= THRESHOLD] = 0
-    appliance_val_classification[appliance_val_classification > THRESHOLD] = 1
-
-    # Standardization of the main power and normalization of appliance power
-    appliance_min_power = np.min(appliance_train)
-    appliance_max_power = np.max(appliance_train)
-    main_std = np.std(main_train)
-    main_mean = np.mean(main_train)
-
-    main_train = standardize_data(main_train, np.mean(main_train), np.std(main_train))
-    main_val = standardize_data(main_val, np.mean(main_val), np.std(main_val))
-
-    appliance_train_regression = np.copy(appliance_train)
-    appliance_train_regression = normalize_data(appliance_train_regression, appliance_min_power, appliance_max_power)
-
-    appliance_val_regression = np.copy(appliance_val)
-    appliance_val_regression = normalize_data(appliance_val_regression, appliance_min_power, appliance_max_power)
-
-    # Dataset generator
-    batch_size = 8
-    train_generator = DataGenerator(main_train, appliance_train_regression,
-                                    appliance_train_classification, window_size, batch_size)
-    val_generator = DataGenerator(main_val, appliance_val_regression,
-                                  appliance_val_classification, window_size, batch_size)
-
-    train_steps = train_generator.__len__()
-    validation_steps = val_generator.__len__()
-
-    # Tune the appliance-dependent parameters
-    filters = 32
-    kernel_size = 4
-    units = 128
-
-    model = model.build_supervised_class_model(window_size, filters, kernel_size, units)
-    model.summary()
-
-    early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-
-    history = model.fit(x=train_generator, epochs=20, steps_per_epoch=train_steps,
-                        validation_data=val_generator, validation_steps=validation_steps,
-                        callbacks=[early_stop], verbose=1,use_multiprocessing=True)
-
-
-    '''
-    PRONE TO CRASHES
-    '''
-    # # Plotting the results of training
-    # history_dict = history.history
-    # plt.title('Loss during training')
-    # plt.plot(np.arange(len(history.epoch)), history_dict['loss'])
-    # plt.plot(np.arange(len(history.epoch)), history_dict['val_loss'])
-    # plt.legend(['train', 'val'])
-    # plt.show()
-
-    # Test
-    appliance_test_classification = np.copy(appliance_test)
-    appliance_test_classification[appliance_test_classification <= THRESHOLD] = 0
-    appliance_test_classification[appliance_test_classification > THRESHOLD] = 1
-
-    appliance_min_power = np.min(appliance_train)
-    appliance_max_power = np.max(appliance_train)
-
-    main_test = standardize_data(main_test, np.mean(main_test), np.std(main_test))
-
-    appliance_test_regression = np.copy(appliance_test)
-    appliance_test_regression = normalize_data(appliance_test_regression, appliance_min_power, appliance_max_power)
-
-    batch_size = 32
-
-    test_generator = DataGenerator(main_test, appliance_test_regression,
-                                   appliance_test_classification, window_size, batch_size)
-
-    test_steps = test_generator.__len__()
-
-    results = model.evaluate(x=test_generator, steps=test_steps)
-    predicted_on_off = model.predict(x=test_generator, steps=test_steps)
-
-    predicted_output *= (appliance_max_power - appliance_min_power)
-    predicted_output += appliance_min_power
-    # Clip negative values to zero
-    predicted_output[predicted_output < 0] = 0.0
-
-    prediction = build_overall_sequence(predicted_output)
-    prediction_on_off = build_overall_sequence(predicted_on_off)
-
-    # Compute metrics
-    N = 1200
-    MAE = mae(prediction, appliance_test)
-    SAE = sae(prediction, appliance_test, N=N)
-    F1 = f1(prediction_on_off, appliance_test_classification)
-
-    print("MAE = {}".format(MAE))
-    print("SAE = {}".format(SAE))
-    print("F1 = {}".format(F1))
-
-    '''
-    PRONE TO BREAK
-    '''
-    # # Plot the result of the prediction
-    # fig, axes = plt.subplots(nrows=6, ncols=1, figsize=(50, 40))
-    # axes[0].set_title("Real")
-    # axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-    # #axes[1].set_title("Prediction")
-    # #axes[1].plot(np.arange(len(prediction)), prediction, color='orange')
-    # #axes[2].set_title("Real vs prediction")
-    # #axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-    # #axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
-    # axes[3].set_title("Real on off")
-    # axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    # axes[4].set_title("Prediction on off")
-    # axes[4].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-    # axes[5].set_title("Real vs Prediction on off")
-    # axes[5].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    # axes[5].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-    # fig.tight_layout()
-
-    fig, axes = plt.subplots(nrows=3,ncols=1)
-    axes[0].set_title("Real on off")
-    axes[0].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    axes[1].set_title("Prediction on off")
-    axes[1].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-    axes[2].set_title("Real vs Prediction on off")
-    axes[2].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    axes[2].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')

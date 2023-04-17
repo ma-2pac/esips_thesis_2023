@@ -4,16 +4,12 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from supervised_class_model.data_generator import DataGenerator
-import supervised_class_model.model as model
+from supervised_class_model.model import build_model
 from shared_files.utils import *
 import importlib
 
 #custom mods
 import shared_files.dataset_utils as utils
-
-#reload
-importlib.reload(model)
-
 
 
 path=''
@@ -57,6 +53,7 @@ test_data=test_data.loc[(test_data['time']>=train_end) & (test_data['time']<test
 #set validation size
 val_pert=0.1
 val_size=int(train_data.shape[0]*val_pert)
+
 
 
 main_train, appliance_train = np.array(train_data['agg_pow'][:-val_size]), np.array(train_data['app_pow'][:-val_size])
@@ -104,19 +101,15 @@ filters = 32
 kernel_size = 4
 units = 128
 
-model = model.build_supervised_class_model(window_size, filters, kernel_size, units)
+model, att_model = build_model(window_size, filters, kernel_size, units)
 model.summary()
 
 early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-history = model.fit(x=train_generator, epochs=10, steps_per_epoch=train_steps,
+history = model.fit(x=train_generator, epochs=5, steps_per_epoch=train_steps,
                     validation_data=val_generator, validation_steps=validation_steps,
                     callbacks=[early_stop], verbose=1,use_multiprocessing=True)
 
-
-'''
-PRONE TO CRASHES
-'''
 # # Plotting the results of training
 # history_dict = history.history
 # plt.title('Loss during training')
@@ -146,43 +139,40 @@ test_generator = DataGenerator(main_test, appliance_test_regression,
 test_steps = test_generator.__len__()
 
 results = model.evaluate(x=test_generator, steps=test_steps)
-predicted_on_off = model.predict(x=test_generator, steps=test_steps)
+predicted_output, predicted_on_off = model.predict(x=test_generator, steps=test_steps)
 
+predicted_output *= (appliance_max_power - appliance_min_power)
+predicted_output += appliance_min_power
+# Clip negative values to zero
+predicted_output[predicted_output < 0] = 0.0
 
+prediction = build_overall_sequence(predicted_output)
 prediction_on_off = build_overall_sequence(predicted_on_off)
 
 # Compute metrics
 N = 1200
+MAE = mae(prediction, appliance_test)
+SAE = sae(prediction, appliance_test, N=N)
 F1 = f1(prediction_on_off, appliance_test_classification)
 
+print("MAE = {}".format(MAE))
+print("SAE = {}".format(SAE))
 print("F1 = {}".format(F1))
 
-'''
-PRONE TO BREAK
-'''
-# # Plot the result of the prediction
-# fig, axes = plt.subplots(nrows=6, ncols=1, figsize=(50, 40))
-# axes[0].set_title("Real")
-# axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-# #axes[1].set_title("Prediction")
-# #axes[1].plot(np.arange(len(prediction)), prediction, color='orange')
-# #axes[2].set_title("Real vs prediction")
-# #axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-# #axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
-# axes[3].set_title("Real on off")
-# axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-# axes[4].set_title("Prediction on off")
-# axes[4].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-# axes[5].set_title("Real vs Prediction on off")
-# axes[5].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-# axes[5].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-# fig.tight_layout()
-
-fig, axes = plt.subplots(nrows=3,ncols=1)
-axes[0].set_title("Real on off")
-axes[0].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-axes[1].set_title("Prediction on off")
-axes[1].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-axes[2].set_title("Real vs Prediction on off")
-axes[2].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-axes[2].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
+# Plot the result of the prediction
+fig, axes = plt.subplots(nrows=6, ncols=1, figsize=(50, 40))
+axes[0].set_title("Real")
+axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
+axes[1].set_title("Prediction")
+axes[1].plot(np.arange(len(prediction)), prediction, color='orange')
+axes[2].set_title("Real vs prediction")
+axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
+axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
+axes[3].set_title("Real on off")
+axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
+axes[4].set_title("Prediction on off")
+axes[4].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
+axes[5].set_title("Real vs Prediction on off")
+axes[5].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
+axes[5].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
+fig.tight_layout()

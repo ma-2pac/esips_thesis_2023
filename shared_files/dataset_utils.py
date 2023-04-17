@@ -6,6 +6,7 @@ import pandas as pd
 import datetime as dt
 import matplotlib.pyplot as plt
 import numpy as np
+#from nilmtk.dataset_converters import convert_ukdale
 
 def load_ukdale(path: str, appliance: str):
 
@@ -118,5 +119,7 @@ def _resample_time(df):
 
     return df
 
-
-
+#convert the ukdale dataset into h5 format
+def convert_ukdale_h5(path):
+    
+    convert_ukdale(ukdale_path=path,output_filename='../datasets/ukdale/ukdale2.h5')
