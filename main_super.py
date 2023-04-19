@@ -7,6 +7,10 @@ from supervised_class_model.data_generator import DataGenerator
 from supervised_class_model.model import build_model
 from shared_files.utils import *
 import importlib
+import openpyxl
+import os
+os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
+
 
 #custom mods
 import shared_files.dataset_utils as utils
@@ -30,7 +34,7 @@ if __name__=='__main__':
     train_data.reset_index(inplace=True,drop=True)
 
     #prep test data
-    test_data = pd.concat([house_1,house_2,house_3,house_4,house_5])
+    test_data = pd.concat([house_2])
     test_data.reset_index(inplace=True,drop=True)
 
     #reset headings
@@ -46,10 +50,11 @@ if __name__=='__main__':
     #slice between two dates
     train_start='2014-01-01'
     train_end='2014-04-01'
-    test_end='2014-04-02'
+    test_start='2013-10-01'
+    test_end='2013-10-02'
 
     train_data=train_data.loc[(train_data['time']>=train_start) & (train_data['time']<train_end)]
-    test_data=test_data.loc[(test_data['time']>=train_end) & (test_data['time']<test_end)]
+    test_data=test_data.loc[(test_data['time']>=test_start) & (test_data['time']<test_end)]
 
     #set validation size
     val_pert=0.1
@@ -129,14 +134,14 @@ if __name__=='__main__':
     appliance_min_power = np.min(appliance_train)
     appliance_max_power = np.max(appliance_train)
 
-    main_test = standardize_data(main_test, np.mean(main_test), np.std(main_test))
+    main_test_std = standardize_data(main_test, np.mean(main_test), np.std(main_test))
 
     appliance_test_regression = np.copy(appliance_test)
     appliance_test_regression = normalize_data(appliance_test_regression, appliance_min_power, appliance_max_power)
 
     batch_size = 32
 
-    test_generator = DataGenerator(main_test, appliance_test_regression,
+    test_generator = DataGenerator(main_test_std, appliance_test_regression,
                                     appliance_test_classification, window_size, batch_size)
 
     test_steps = test_generator.__len__()
@@ -167,35 +172,31 @@ if __name__=='__main__':
     '''
     Save CSV
     '''
-    #combine regression results
-    reg_df = pd.DataFrame()
-    reg_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test),pd.Series(prediction)],axis=1)
-    reg_df.columns=['time','actual','predicted']
+    # #combine regression results
+    # reg_df = pd.DataFrame()
+    # reg_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test),pd.Series(prediction)],axis=1)
+    # reg_df.columns=['time','actual','predicted']
 
-    #combine classification results
-    class_df = pd.DataFrame()
-    class_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test_classification),pd.Series(prediction_on_off)],axis=1)
-    class_df.columns=['time','actual','predicted']
+    # #combine classification results
+    # class_df = pd.DataFrame()
+    # class_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test_classification),pd.Series(prediction_on_off)],axis=1)
+    # class_df.columns=['time','actual','predicted']
 
-    #save csvs
-    reg_df.to_excel(f'saved_csvs/{model_name}_reg.csv')
-    class_df.to_excel(f'saved_csvs/{model_name}_class.csv')
+    # #save csvs
+    # reg_df.to_excel(f'saved_xlsx/{model_name}_reg.xlsx')
+    # class_df.to_excel(f'saved_xlsx/{model_name}_class.xlsx')
 
 
     # # Plot the result of the prediction
-    # fig, axes = plt.subplots(nrows=6, ncols=1, figsize=(50, 40))
-    # axes[0].set_title("Real")
-    # axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-    # axes[1].set_title("Prediction")
-    # axes[1].plot(np.arange(len(prediction)), prediction, color='orange')
-    # axes[2].set_title("Real vs prediction")
-    # axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-    # axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
-    # axes[3].set_title("Real on off")
-    # axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    # axes[4].set_title("Prediction on off")
-    # axes[4].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-    # axes[5].set_title("Real vs Prediction on off")
-    # axes[5].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    # axes[5].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
-    # fig.tight_layout()
+    fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(50, 40))
+    axes[0].set_title("Real Appliance")
+    axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
+    axes[1].set_title("Real Main")
+    axes[1].plot(np.arange(len(main_test)), main_test, color='orange')
+    axes[2].set_title("Real vs prediction")
+    axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
+    axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
+    axes[3].set_title("Real vs Prediction on off")
+    axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
+    axes[3].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
+    fig.tight_layout()
