@@ -17,9 +17,9 @@ import shared_files.dataset_utils as utils
 
 if __name__=='__main__':
     path=''
-    model_name='dw_10e_3mon'
-
-    appliance='dishwasher'
+    model_name='k_10e_1mon'
+    test_sites="house1"
+    appliance='kettle'
 
     # Choose the appliance-specific window size
     window_size = 100
@@ -27,14 +27,16 @@ if __name__=='__main__':
     # Threshold of 15 Watt for detecting the ON/OFF states
     THRESHOLD = 15
 
-    appliance_df, house_1, house_2, house_3, house_4, house_5 = utils.load_ukdale(path='datasets/', appliance= 'dishwasher')
+    appliance_df, house_1, house_2, house_3, house_4, house_5 = utils.load_ukdale(path='datasets/', appliance=appliance)
 
     #merge different site data
+    train_data=pd.DataFrame()
+    test_data=pd.DataFrame()
     train_data=pd.concat([house_1,house_2,house_3,house_4,house_5])
     train_data.reset_index(inplace=True,drop=True)
 
     #prep test data
-    test_data = pd.concat([house_2])
+    test_data = pd.concat([house_1])
     test_data.reset_index(inplace=True,drop=True)
 
     #reset headings
@@ -49,9 +51,9 @@ if __name__=='__main__':
 
     #slice between two dates
     train_start='2014-01-01'
-    train_end='2014-04-01'
-    test_start='2013-10-01'
-    test_end='2013-10-02'
+    train_end='2014-02-01'
+    test_start='2014-02-01'
+    test_end='2014-02-03'
 
     train_data=train_data.loc[(train_data['time']>=train_start) & (train_data['time']<train_end)]
     test_data=test_data.loc[(test_data['time']>=test_start) & (test_data['time']<test_end)]
@@ -92,29 +94,29 @@ if __name__=='__main__':
     appliance_val_regression = np.copy(appliance_val)
     appliance_val_regression = normalize_data(appliance_val_regression, appliance_min_power, appliance_max_power)
 
-    # # Dataset generator
-    # batch_size = 8
-    # train_generator = DataGenerator(main_train, appliance_train_regression,
-    #                                 appliance_train_classification, window_size, batch_size)
-    # val_generator = DataGenerator(main_val, appliance_val_regression,
-    #                                 appliance_val_classification, window_size, batch_size)
+    # Dataset generator
+    batch_size = 8
+    train_generator = DataGenerator(main_train, appliance_train_regression,
+                                    appliance_train_classification, window_size, batch_size)
+    val_generator = DataGenerator(main_val, appliance_val_regression,
+                                    appliance_val_classification, window_size, batch_size)
 
-    # train_steps = train_generator.__len__()
-    # validation_steps = val_generator.__len__()
+    train_steps = train_generator.__len__()
+    validation_steps = val_generator.__len__()
 
-    # # Tune the appliance-dependent parameters
-    # filters = 32
-    # kernel_size = 4
-    # units = 128
+    # Tune the appliance-dependent parameters
+    filters = 32
+    kernel_size = 4
+    units = 128
 
-    # model, att_model = build_model(window_size, filters, kernel_size, units)
-    # model.summary()
+    model, att_model = build_model(window_size, filters, kernel_size, units)
+    model.summary()
 
-    # early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+    early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-    # history = model.fit(x=train_generator, epochs=10, steps_per_epoch=train_steps,
-    #                     validation_data=val_generator, validation_steps=validation_steps,
-    #                     callbacks=[early_stop], verbose=1,use_multiprocessing=True)
+    history = model.fit(x=train_generator, epochs=10, steps_per_epoch=train_steps,
+                        validation_data=val_generator, validation_steps=validation_steps,
+                        callbacks=[early_stop], verbose=1,use_multiprocessing=True)
 
     # # Plotting the results of training
     # history_dict = history.history
@@ -124,7 +126,7 @@ if __name__=='__main__':
     # plt.legend(['train', 'val'])
     # plt.show()
 
-    model = keras.models.load_model(f'saved_models/{model_name}')
+    #model = keras.models.load_model(f'saved_models/{model_name}')
 
     # Test
     appliance_test_classification = np.copy(appliance_test)
@@ -167,7 +169,17 @@ if __name__=='__main__':
     print("SAE = {}".format(SAE))
     print("F1 = {}".format(F1))
 
-    #model.save(f'saved_models/{model_name}')
+    model.save(f'saved_models/{model_name}')
+    '''
+    Save Results
+    '''
+    #write sae, mae and f1 to text file
+    with open(f"saved_results/{model_name}_test_{test_sites}.txt","w") as f:
+        f.write(f"MAE: {MAE}\n")
+        f.write(f"SAE: {SAE}\n")
+        f.write(f"F1: {F1}\n")
+        f.write(f"Start Date: {test_start}")
+        f.write(f"End Date: {test_end}")
 
     '''
     Save CSV
@@ -190,13 +202,18 @@ if __name__=='__main__':
     # # Plot the result of the prediction
     fig, axes = plt.subplots(nrows=4, ncols=1, figsize=(50, 40))
     axes[0].set_title("Real Appliance")
-    axes[0].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
+    axes[0].plot(test_data['time'], appliance_test, color='blue')
     axes[1].set_title("Real Main")
-    axes[1].plot(np.arange(len(main_test)), main_test, color='orange')
+    axes[1].plot(test_data['time'], main_test, color='orange')
     axes[2].set_title("Real vs prediction")
-    axes[2].plot(np.arange(len(appliance_test)), appliance_test, color='blue')
-    axes[2].plot(np.arange(len(prediction)), prediction, color='orange')
+    axes[2].plot(test_data['time'], appliance_test, color='blue')
+    axes[2].plot(test_data['time'], prediction, color='orange')
     axes[3].set_title("Real vs Prediction on off")
-    axes[3].plot(np.arange(len(appliance_test_classification)), appliance_test_classification, color='blue')
-    axes[3].plot(np.arange(len(prediction_on_off)), prediction_on_off, color='orange')
+    axes[3].plot(test_data['time'], appliance_test_classification, color='blue')
+    axes[3].plot(test_data['time'], prediction_on_off, color='orange')
     fig.tight_layout()
+    plt.savefig(f"saved_results/{model_name}_test_{test_sites}.png")
+
+
+
+
