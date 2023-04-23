@@ -16,8 +16,8 @@ experiment = {
             'path': 'datasets/ukdale/ukdale2.h5',
             'buildings': {
                 1: {
-                    'start_time': '2013-03-01',
-                    'end_time': '2013-05-01'
+                    'start_time': '2014-01-01',
+                    'end_time': '2014-02-01'
                     }
                 }                
             }
@@ -29,8 +29,8 @@ experiment = {
             'path': 'datasets/ukdale/ukdale2.h5',
             'buildings': {
                 1: {
-                    'start_time': '2013-05-02',
-                    'end_time': '2013-05-03'
+                    'start_time': '2014-02-01',
+                    'end_time': '2014-02-08'
                     }
                 }
             }
