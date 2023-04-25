@@ -7,7 +7,6 @@ from supervised_class_model.data_generator import DataGenerator
 from supervised_class_model.model import build_model
 from shared_files.utils import *
 import importlib
-import openpyxl
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
