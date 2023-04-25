@@ -12,9 +12,9 @@ class Self_Attn(nn.Module):
         self.chanel_in = in_dim
         self.activation = activation
         
-        self.query_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
-        self.key_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
-        self.value_conv = nn.Conv2d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
+        self.query_conv = nn.Conv1d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
+        self.key_conv = nn.Conv1d(in_channels = in_dim , out_channels = in_dim//8 , kernel_size= 1)
+        self.value_conv = nn.Conv1d(in_channels = in_dim , out_channels = in_dim , kernel_size= 1)
         self.gamma = nn.Parameter(torch.zeros(1))
 
         self.softmax  = nn.Softmax(dim=-1) #
@@ -52,27 +52,27 @@ class Generator(nn.Module):
 
         repeat_num = int(np.log2(self.imsize)) - 3
         mult = 2 ** repeat_num # 8
-        layer1.append(SpectralNorm(nn.ConvTranspose2d(z_dim, conv_dim * mult, 4)))
-        layer1.append(nn.BatchNorm2d(conv_dim * mult))
+        #layer1.append(SpectralNorm(nn.ConvTranspose1d(z_dim, conv_dim * mult, 4)))
+        layer1.append(nn.BatchNorm1d(conv_dim * mult))
         layer1.append(nn.ReLU())
 
         curr_dim = conv_dim * mult
 
-        layer2.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
-        layer2.append(nn.BatchNorm2d(int(curr_dim / 2)))
+        #layer2.append(SpectralNorm(nn.ConvTranspose1d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
+        layer2.append(nn.BatchNorm1d(int(curr_dim / 2)))
         layer2.append(nn.ReLU())
 
         curr_dim = int(curr_dim / 2)
 
-        layer3.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
-        layer3.append(nn.BatchNorm2d(int(curr_dim / 2)))
+        #layer3.append(SpectralNorm(nn.ConvTranspose1d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
+        layer3.append(nn.BatchNorm1d(int(curr_dim / 2)))
         layer3.append(nn.ReLU())
 
         if self.imsize == 64:
             layer4 = []
             curr_dim = int(curr_dim / 2)
-            layer4.append(SpectralNorm(nn.ConvTranspose2d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
-            layer4.append(nn.BatchNorm2d(int(curr_dim / 2)))
+            #layer4.append(SpectralNorm(nn.ConvTranspose1d(curr_dim, int(curr_dim / 2), 4, 2, 1)))
+            layer4.append(nn.BatchNorm1d(int(curr_dim / 2)))
             layer4.append(nn.ReLU())
             self.l4 = nn.Sequential(*layer4)
             curr_dim = int(curr_dim / 2)
@@ -81,7 +81,7 @@ class Generator(nn.Module):
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
 
-        last.append(nn.ConvTranspose2d(curr_dim, 3, 4, 2, 1))
+        last.append(nn.ConvTranspose1d(curr_dim, 3, 4, 2, 1))
         last.append(nn.Tanh())
         self.last = nn.Sequential(*last)
 
@@ -112,22 +112,22 @@ class Discriminator(nn.Module):
         layer3 = []
         last = []
 
-        layer1.append(SpectralNorm(nn.Conv2d(3, conv_dim, 4, 2, 1)))
+        #layer1.append(SpectralNorm(nn.Conv1d(3, conv_dim, 4, 2, 1)))
         layer1.append(nn.LeakyReLU(0.1))
 
         curr_dim = conv_dim
 
-        layer2.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
+        #layer2.append(SpectralNorm(nn.Conv1d(curr_dim, curr_dim * 2, 4, 2, 1)))
         layer2.append(nn.LeakyReLU(0.1))
         curr_dim = curr_dim * 2
 
-        layer3.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
+        #layer3.append(SpectralNorm(nn.Conv1d(curr_dim, curr_dim * 2, 4, 2, 1)))
         layer3.append(nn.LeakyReLU(0.1))
         curr_dim = curr_dim * 2
 
         if self.imsize == 64:
             layer4 = []
-            layer4.append(SpectralNorm(nn.Conv2d(curr_dim, curr_dim * 2, 4, 2, 1)))
+            #layer4.append(SpectralNorm(nn.Conv1d(curr_dim, curr_dim * 2, 4, 2, 1)))
             layer4.append(nn.LeakyReLU(0.1))
             self.l4 = nn.Sequential(*layer4)
             curr_dim = curr_dim*2
@@ -135,7 +135,7 @@ class Discriminator(nn.Module):
         self.l2 = nn.Sequential(*layer2)
         self.l3 = nn.Sequential(*layer3)
 
-        last.append(nn.Conv2d(curr_dim, 1, 4))
+        last.append(nn.Conv1d(curr_dim, 1, 4))
         self.last = nn.Sequential(*last)
 
         self.attn1 = Self_Attn(256, 'relu')
