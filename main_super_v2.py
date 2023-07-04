@@ -22,33 +22,35 @@ else:
 
 if __name__=="__main__":
 
+    win_scaler = 6/300
+
     appliance_win_dict={
-    'dishwasher':int(1536*6/300),
-    'fridge':int(5126*6/300),
-    'kettle':int(128*6/300),
-    'microwave':int(288*6/300),
-    'washing machine':int(1024*6/300)
+    'dishwasher':int(1536*win_scaler),
+    'fridge':int(5126*win_scaler),
+    'kettle':int(128*win_scaler),
+    'microwave':int(288*win_scaler),
+    'washing machine':int(1024*win_scaler)
     }
 
-    appliance_list=['kettle']
+    appliance_list=['dishwasher','microwave']
 
     for app in appliance_list:
 
         path=''
 
         train_with_gan=False
+        att_flag=True
 
         # Choose the appliance-specific window size
         window_size = appliance_win_dict[app]
         if window_size<50:
             window_size=50
 
-        window_size =128
 
         epochs=50
 
 
-        model_name=f'sgn_{app}_{epochs}e_1year_{window_size}win'
+        model_name=f'att_{app}_{epochs}e_1year_{window_size}win'
         print(model_name)
         test_sites="house1"
         appliance=app
@@ -156,8 +158,10 @@ if __name__=="__main__":
         kernel_size = 8
         units = 1024
 
-        model, att_model = b_model.build_model(window_size, filters, kernel_size, units)
-        #model = b_model.build_sgn(window_size, filters, kernel_size, units)
+        if att_flag:
+            model, att_model = b_model.build_model(window_size, filters, kernel_size, units)
+        else:
+            model = b_model.build_sgn(window_size, filters, kernel_size, units)
         model.summary()
 
 
@@ -167,8 +171,8 @@ if __name__=="__main__":
                             validation_data=val_generator, validation_steps=validation_steps,
                             callbacks=[early_stop], verbose=1,use_multiprocessing=True)
         #save model
-        #model.save(f'saved_models/{model_name}')
-        #att_model.save(f'saved_models/{model_name}_att_model')
+        model.save(f'saved_models/{model_name}')
+        att_model.save(f'saved_models/{model_name}_att_model')
 
         #Plotting the results of training
         history_dict = history.history
@@ -218,7 +222,7 @@ if __name__=="__main__":
         att_seq = (att_seq - np.min(att_seq)) / (np.max(att_seq) - np.min(att_seq))
 
         # Compute metrics
-        N = 1200
+        N = 288
         MAE = mae(prediction, appliance_test)
         SAE = sae(prediction, appliance_test, N=N)
         F1 = f1(prediction_on_off, appliance_test_classification)
@@ -238,23 +242,6 @@ if __name__=="__main__":
             f.write(f"F1: {F1}\n")
             f.write(f"Start Date: {test_start}\n")
             f.write(f"End Date: {test_end}")
-
-        '''
-        Save CSV
-        '''
-        # #combine regression results
-        # reg_df = pd.DataFrame()
-        # reg_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test),pd.Series(prediction)],axis=1)
-        # reg_df.columns=['time','actual','predicted']
-
-        # #combine classification results
-        # class_df = pd.DataFrame()
-        # class_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test_classification),pd.Series(prediction_on_off)],axis=1)
-        # class_df.columns=['time','actual','predicted']
-
-        # #save csvs
-        # reg_df.to_excel(f'saved_xlsx/{model_name}_reg.xlsx')
-        # class_df.to_excel(f'saved_xlsx/{model_name}_class.xlsx')
 
 
         # Plot the result of the prediction

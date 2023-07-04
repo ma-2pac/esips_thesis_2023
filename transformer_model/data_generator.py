@@ -14,7 +14,6 @@ class DataGenerator(tf.keras.utils.Sequence):
         self.shuffle = shuffle
 
     def __len__(self):
-        
         return int(np.ceil(len(self.indices) / self.batch_size))
 
     def __getitem__(self, idx):

@@ -12,7 +12,7 @@ def main(config):
 
     #data loader variables
     train=True
-    dataset=None
+    dataset='ukdale'
     path=None
     imsize=None
     batch_size=None
@@ -34,8 +34,6 @@ def main(config):
     if train:
         if model=='sagan':
             trainer = Trainer(data_loader.loader(), config)
-        elif model == 'qgan':
-            trainer = qgan_trainer(data_loader.loader(), config)
         trainer.train()
     else:
         tester = Tester(data_loader.loader(), config)

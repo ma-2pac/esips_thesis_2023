@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from spectral import SpectralNorm
+from sagan.spectral import SpectralNorm
 import numpy as np
 
 class Self_Attn(nn.Module):
@@ -85,8 +85,8 @@ class Generator(nn.Module):
         last.append(nn.Tanh())
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn( 128, 'relu')
-        self.attn2 = Self_Attn( 64,  'relu')
+        # self.attn1 = Self_Attn( 128, 'relu')
+        # self.attn2 = Self_Attn( 64,  'relu')
 
     def forward(self, z):
         z = z.view(z.size(0), z.size(1), 1, 1)
@@ -138,8 +138,8 @@ class Discriminator(nn.Module):
         last.append(nn.Conv1d(curr_dim, 1, 4))
         self.last = nn.Sequential(*last)
 
-        self.attn1 = Self_Attn(256, 'relu')
-        self.attn2 = Self_Attn(512, 'relu')
+        # self.attn1 = Self_Attn(256, 'relu')
+        # self.attn2 = Self_Attn(512, 'relu')
 
     def forward(self, x):
         out = self.l1(x)

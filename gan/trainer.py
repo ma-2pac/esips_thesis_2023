@@ -1,4 +1,3 @@
-
 import os
 import time
 import torch
@@ -8,8 +7,8 @@ import torch.nn as nn
 from torch.autograd import Variable
 from torchvision.utils import save_image
 
-from sagan.sagan_models import Generator, Discriminator
-from sagan.utils import *
+from gan.gan_model import Generator, Discriminator
+from gan.utils import *
 
 class Trainer(object):
     def __init__(self, data_loader, config):
@@ -59,8 +58,6 @@ class Trainer(object):
 
         self.build_model()
 
-        if self.use_tensorboard:
-            self.build_tensorboard()
 
         # Start with trained model
         if self.pretrained_model:
@@ -206,9 +203,6 @@ class Trainer(object):
         print(self.G)
         print(self.D)
 
-    def build_tensorboard(self):
-        from logger import Logger
-        self.logger = Logger(self.log_path)
 
     def load_pretrained_model(self):
         self.G.load_state_dict(torch.load(os.path.join(

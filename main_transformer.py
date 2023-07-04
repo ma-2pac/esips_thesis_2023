@@ -8,11 +8,13 @@ import supervised_class_model.model as b_model
 from shared_files.utils import *
 import importlib
 import os
+import transformer_model.transformer as tfr
 #os.environ["KMP_DUPLICATE_LIB_OK"]="TRUE"
 
 #custom mods
 import shared_files.dataset_utils as utils
 importlib.reload(b_model)
+importlib.reload(tfr)
 
 # Check if GPU is available
 if tf.test.gpu_device_name():
@@ -40,20 +42,19 @@ if __name__=="__main__":
 
         # Choose the appliance-specific window size
         window_size = appliance_win_dict[app]
-        if window_size<50:
-            window_size=50
+        # if window_size<50:
+        #     window_size=50
 
-        window_size =128
 
         epochs=50
 
 
-        model_name=f'sgn_{app}_{epochs}e_1year_{window_size}win'
+        model_name=f'trans_{app}_{epochs}e_1year_{window_size}win'
         print(model_name)
         test_sites="house1"
         appliance=app
 
- 
+
 
         # Threshold of 15 Watt for detecting the ON/OFF states
         THRESHOLD = 15
@@ -152,22 +153,32 @@ if __name__=="__main__":
         validation_steps = val_generator.__len__()
 
         # Tune the appliance-dependent parameters
-        filters = 64
-        kernel_size = 8
-        units = 1024
+        filters = 32
+        kernel_size = 4
+        units = 128
 
-        model, att_model = b_model.build_model(window_size, filters, kernel_size, units)
-        #model = b_model.build_sgn(window_size, filters, kernel_size, units)
-        model.summary()
+        num_layers = 4 # number of layers
+        d_model = 128 #dimensionality of embeddings
+        dff = 512 #internal dimensionality of feedforward layer
+        num_heads = 8 #number of self attention heads
+        dropout_rate = 0.1
+
+        transformer = tfr.Transformer(
+            num_layers=num_layers,
+            d_model=d_model,
+            num_heads=num_heads,
+            dff=dff,
+            input_vocab_size=window_size,
+            target_vocab_size=window_size,
+            dropout_rate=dropout_rate)
 
 
-        early_stop = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
 
-        history = model.fit(x=train_generator, epochs=epochs, steps_per_epoch=train_steps,
-                            validation_data=val_generator, validation_steps=validation_steps,
-                            callbacks=[early_stop], verbose=1,use_multiprocessing=True)
+
+
+
         #save model
-        #model.save(f'saved_models/{model_name}')
+        model.save(f'saved_models/{model_name}')
         #att_model.save(f'saved_models/{model_name}_att_model')
 
         #Plotting the results of training
@@ -212,13 +223,13 @@ if __name__=="__main__":
         prediction = build_overall_sequence(predicted_output)
         prediction_on_off = build_overall_sequence(predicted_on_off)
 
-        #attention test
-        att_output = att_model.predict(x=test_generator, steps=test_steps)
-        att_seq = build_overall_sequence(att_output)
-        att_seq = (att_seq - np.min(att_seq)) / (np.max(att_seq) - np.min(att_seq))
+        # #attention test
+        # att_output = att_model.predict(x=test_generator, steps=test_steps)
+        # att_seq = build_overall_sequence(att_output)
+        # att_seq = (att_seq - np.min(att_seq)) / (np.max(att_seq) - np.min(att_seq))
 
         # Compute metrics
-        N = 1200
+        N = len(prediction)
         MAE = mae(prediction, appliance_test)
         SAE = sae(prediction, appliance_test, N=N)
         F1 = f1(prediction_on_off, appliance_test_classification)
@@ -239,22 +250,6 @@ if __name__=="__main__":
             f.write(f"Start Date: {test_start}\n")
             f.write(f"End Date: {test_end}")
 
-        '''
-        Save CSV
-        '''
-        # #combine regression results
-        # reg_df = pd.DataFrame()
-        # reg_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test),pd.Series(prediction)],axis=1)
-        # reg_df.columns=['time','actual','predicted']
-
-        # #combine classification results
-        # class_df = pd.DataFrame()
-        # class_df = pd.concat([test_data['time'].reset_index(drop=True),pd.Series(appliance_test_classification),pd.Series(prediction_on_off)],axis=1)
-        # class_df.columns=['time','actual','predicted']
-
-        # #save csvs
-        # reg_df.to_excel(f'saved_xlsx/{model_name}_reg.xlsx')
-        # class_df.to_excel(f'saved_xlsx/{model_name}_class.xlsx')
 
 
         # Plot the result of the prediction
@@ -269,8 +264,8 @@ if __name__=="__main__":
         axes[3].set_title("Real vs Prediction on off")
         axes[3].plot(test_data['time'], appliance_test_classification, color='blue')
         axes[3].plot(test_data['time'], prediction_on_off, color='orange')
-        axes[4].set_title("Attention Weights")
-        axes[4].plot(test_data['time'].iloc[:att_seq.shape[0]], att_seq, color='blue')
+        # axes[4].set_title("Attention Weights")
+        # axes[4].plot(test_data['time'].iloc[:att_seq.shape[0]], att_seq, color='blue')
         fig.tight_layout()
 
         fig, axes = plt.subplots(nrows=1, ncols=1,figsize=(20,5))
